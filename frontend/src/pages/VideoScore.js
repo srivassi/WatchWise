@@ -287,18 +287,38 @@ export default function VideoScore() {
 
   return (
     <>
-      <div className="card">
-        <div className="section-title">Score a YouTube Video</div>
-        <form onSubmit={handleSubmit}>
-          <div className="row">
+      <div style={{ textAlign: "center", marginBottom: "3rem", padding: "1rem 1rem 0" }}>
+        <div style={{ display: "inline-block", color: "#8b9eed", fontSize: "0.85rem", fontWeight: "800", letterSpacing: "1.5px", textTransform: "uppercase", marginBottom: "1.5rem" }}>
+          ✦ 01 - VIDEO ANALYSIS ✦
+        </div>
+        <h1 style={{ color: "#2d3346", fontSize: "3.8rem", fontWeight: "900", margin: "0 0 0.5rem", lineHeight: "1.2", letterSpacing: "-0.01em" }}>
+          Ensure their <span style={{ background: "#8b9eed", color: "#fff", padding: "0.1em 0.4em", borderRadius: "12px", display: "inline-block", transform: "rotate(-1.5deg)" }}>screen time</span> is
+          <br />
+          healthy
+        </h1>
+        <p style={{ color: "#6e758d", fontSize: "1.15rem", maxWidth: "680px", margin: "1.8rem auto 0", lineHeight: "1.7", fontWeight: "500" }}>
+          Check any YouTube video for its pacing, sensory overload, and educational<br/>
+          value. Our panel of specialized judges analyzes the content to give you<br/>
+          peace of mind before your child watches.
+        </p>
+      </div>
+
+      <div style={{ marginBottom: "2.5rem" }}>
+        <form onSubmit={handleSubmit} style={{ background: "#fff", padding: "1.5rem", borderRadius: "24px", boxShadow: "0 12px 24px rgba(100, 70, 200, 0.05)", border: "2px solid #e8e2ff" }}>
+          <div className="row" style={{ gap: "1rem" }}>
             <input
               type="text" placeholder="https://youtube.com/watch?v=…"
               value={url} onChange={e => setUrl(e.target.value)} required
+              style={{ flex: 1, padding: "16px 20px", fontSize: "1.1rem", borderRadius: "16px", border: "2px solid #e8e2ff", outline: "none", background: "#f7f4ff" }}
             />
-            <span className="age-label">Age</span>
-            <input type="number" min={2} max={17} value={age}
-              onChange={e => setAge(e.target.value)} />
-            <button type="submit" disabled={loading}>
+            <div style={{ display: "flex", alignItems: "center", gap: "12px", background: "#f0eeff", padding: "4px 16px", borderRadius: "16px" }}>
+              <span className="age-label" style={{ fontWeight: 800, color: "#6248d4" }}>Age</span>
+              <input type="number" min={2} max={17} value={age}
+                onChange={e => setAge(e.target.value)} 
+                style={{ width: "60px", padding: "8px", border: "none", borderRadius: "8px", textAlign: "center", fontWeight: "800", fontSize: "1.1rem", color: "#2d3346", background: "#fff" }}
+              />
+            </div>
+            <button type="submit" disabled={loading} style={{ padding: "16px 32px", fontSize: "1.1rem", borderRadius: "16px", background: "#6248d4", color: "#fff", fontWeight: "800", border: "none", cursor: "pointer", transition: "transform 0.1s" }}>
               {loading ? "Analyzing…" : "Analyze ✨"}
             </button>
           </div>
