@@ -1,4 +1,4 @@
-# RotCheck 🧠
+# WatchWise 🧠
 
 Scores how overstimulating/brain-rotty YouTube content is for kids, grounded in neuroscience.
 
