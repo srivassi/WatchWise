@@ -75,7 +75,7 @@ async def sensory_agent(signals: dict, age: int):
 
     full_text = ""
     async with async_client.messages.stream(
-        model=MODEL, max_tokens=400, system=SYSTEM,
+        model=MODEL, max_tokens=200, system=SYSTEM,
         messages=[{"role": "user", "content": user}],
     ) as stream:
         async for text in stream.text_stream:

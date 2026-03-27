@@ -43,7 +43,7 @@ async def judge_agent(radar: dict, age: int, channel: str):
 
     summary = ""
     async with async_client.messages.stream(
-        model=MODEL, max_tokens=300, system=SYSTEM,
+        model=MODEL, max_tokens=200, system=SYSTEM,
         messages=[{"role": "user", "content": user}],
     ) as stream:
         async for text in stream.text_stream:
