@@ -15,34 +15,14 @@ visual transitions fragment attentional networks in developing brains. You apply
 finite-state temporal string model: video pacing as strings over Σ = {s, n}, where string \
 density |n|/t (cuts/min) is the primary attentional demand signal.
 
-You have been given pacing signals for a video a child has watched. Use your tool to compute \
-precise attention load metrics, then write 2–3 sentences from your research perspective on what \
-the pacing means for this child's developing attention system.
+You have been given pacing signals and pre-computed attention load metrics for a video a child \
+has watched. Write 2–3 sentences from your research perspective on what the pacing means for \
+this child's developing attention system.
 
 End your response on a new line with exactly:
 SCORE: <0-100>
 (0 = smooth, age-appropriate pacing  |  100 = severely overstimulating for this age group)\
 """
-
-TOOLS = [
-    {
-        "name": "compute_attention_load",
-        "description": (
-            "Compute the attentional demand from pacing signals using the Fernando FSM "
-            "string density model. Returns how far the content is above the safe threshold "
-            "for the child's age, and estimated total cut events."
-        ),
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "cuts_per_min": {"type": "number", "description": "Measured cuts per minute"},
-                "age": {"type": "integer", "description": "Child's age"},
-                "duration_sec": {"type": "integer", "description": "Video duration in seconds"},
-            },
-            "required": ["cuts_per_min", "age", "duration_sec"],
-        },
-    }
-]
 
 
 def _compute_attention_load(cuts_per_min: float, age: int, duration_sec: int) -> dict:
@@ -67,55 +47,31 @@ def _compute_attention_load(cuts_per_min: float, age: int, duration_sec: int) ->
     }
 
 
-def _handle_tool(name: str, inp: dict) -> dict:
-    if name == "compute_attention_load":
-        return _compute_attention_load(
-            inp["cuts_per_min"], inp["age"], inp["duration_sec"]
-        )
-    return {"error": f"Unknown tool: {name}"}
-
-
 async def pacing_agent(signals: dict, age: int):
     bracket = age_bracket_label(age)
     band = get_age_band(age)
     cuts = signals.get("cuts_per_min", 0)
+    duration = signals.get("duration_sec", 0)
+
+    analysis = _compute_attention_load(cuts, age, duration)
 
     user = (
         f"Child age: {age} (bracket: {bracket}, safe limit: ≤{band['max_cuts_per_min']} cuts/min)\n"
         f"Cuts per minute: {cuts}\n"
-        f"Duration: {signals.get('duration_sec', 0)}s\n\n"
+        f"Duration: {duration}s\n\n"
+        f"Computed attention load analysis:\n{json.dumps(analysis, indent=2)}\n\n"
         "Assess the pacing demands on this child's attention system."
     )
 
     yield {"type": "agent_start", "agent": AGENT_ID, "label": AGENT_LABEL}
 
-    messages = [{"role": "user", "content": user}]
-    for _ in range(3):
-        full_text = ""
-        async with async_client.messages.stream(
-            model=MODEL, max_tokens=400, system=SYSTEM,
-            messages=messages, tools=TOOLS,
-        ) as stream:
-            async for text in stream.text_stream:
-                full_text += text
-                yield {"type": "token", "agent": AGENT_ID, "text": text}
-            final_msg = await stream.get_final_message()
+    full_text = ""
+    async with async_client.messages.stream(
+        model=MODEL, max_tokens=400, system=SYSTEM,
+        messages=[{"role": "user", "content": user}],
+    ) as stream:
+        async for text in stream.text_stream:
+            full_text += text
+            yield {"type": "token", "agent": AGENT_ID, "text": text}
 
-        if final_msg.stop_reason == "tool_use":
-            tool_results = []
-            for block in final_msg.content:
-                if block.type == "tool_use":
-                    result = _handle_tool(block.name, block.input)
-                    yield {"type": "tool_call", "agent": AGENT_ID, "tool": block.name}
-                    tool_results.append({
-                        "type": "tool_result",
-                        "tool_use_id": block.id,
-                        "content": json.dumps(result),
-                    })
-            messages.append({"role": "assistant", "content": final_msg.content})
-            messages.append({"role": "user", "content": tool_results})
-        else:
-            yield {"type": "agent_done", "agent": AGENT_ID, "label": AGENT_LABEL, "score": parse_score(full_text)}
-            return
-
-    yield {"type": "agent_done", "agent": AGENT_ID, "label": AGENT_LABEL, "score": 50}
+    yield {"type": "agent_done", "agent": AGENT_ID, "label": AGENT_LABEL, "score": parse_score(full_text)}

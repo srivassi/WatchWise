@@ -16,35 +16,25 @@ expertise in the specific manipulation tactics used in children's content: paras
 engineered FOMO, fake urgency, clickbait framing, and engagement-bait language that targets \
 children who lack the cognitive defenses adults have.
 
-You have been given a video transcript watched by a child. Use your tool to systematically \
-scan for manipulation patterns, then write 2–3 sentences from your analytical perspective on \
-what you find and what it means for a child viewer.
+You have been given a video transcript and pre-computed manipulation pattern scan results. \
+Write 2–3 sentences from your analytical perspective on what you find and what it means for \
+a child viewer.
 
 End your response on a new line with exactly:
 SCORE: <0-100>
 (0 = no manipulative tactics detected  |  100 = heavily engineered to exploit child psychology)\
 """
 
-TOOLS = [
-    {
-        "name": "scan_manipulation_patterns",
-        "description": (
-            "Scan a transcript for dark patterns targeting children: parasocial manipulation, "
-            "fake urgency, clickbait framing, FOMO triggers, and engagement bait. "
-            "Returns categorised findings and a concern level."
-        ),
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "transcript": {"type": "string", "description": "The video transcript to scan"},
-            },
-            "required": ["transcript"],
-        },
-    }
-]
-
 
 def _scan_manipulation_patterns(transcript: str) -> dict:
+    if not transcript:
+        return {
+            "patterns_detected": {},
+            "categories_flagged": 0,
+            "high_concern": False,
+            "analyst_note": "No transcript available — pattern scan could not be performed.",
+        }
+
     lower = transcript.lower()
 
     pattern_library = {
@@ -94,51 +84,29 @@ def _scan_manipulation_patterns(transcript: str) -> dict:
     }
 
 
-def _handle_tool(name: str, inp: dict) -> dict:
-    if name == "scan_manipulation_patterns":
-        return _scan_manipulation_patterns(inp["transcript"])
-    return {"error": f"Unknown tool: {name}"}
-
-
 async def manipulation_agent(transcript: str, channel: str, age: int):
     bracket = age_bracket_label(age)
+
+    analysis = _scan_manipulation_patterns(transcript)
+    transcript_snippet = transcript[:1500] if transcript else "(no transcript available)"
 
     user = (
         f"Child age: {age} (bracket: {bracket})\n"
         f"Channel: {channel}\n"
-        f"Transcript (first 1500 chars):\n{transcript[:1500]}\n\n"
+        f"Transcript (first 1500 chars):\n{transcript_snippet}\n\n"
+        f"Computed manipulation pattern scan:\n{json.dumps(analysis, indent=2)}\n\n"
         "Identify any manipulation tactics targeting this child viewer."
     )
 
     yield {"type": "agent_start", "agent": AGENT_ID, "label": AGENT_LABEL}
 
-    messages = [{"role": "user", "content": user}]
-    for _ in range(3):
-        full_text = ""
-        async with async_client.messages.stream(
-            model=MODEL, max_tokens=400, system=SYSTEM,
-            messages=messages, tools=TOOLS,
-        ) as stream:
-            async for text in stream.text_stream:
-                full_text += text
-                yield {"type": "token", "agent": AGENT_ID, "text": text}
-            final_msg = await stream.get_final_message()
+    full_text = ""
+    async with async_client.messages.stream(
+        model=MODEL, max_tokens=400, system=SYSTEM,
+        messages=[{"role": "user", "content": user}],
+    ) as stream:
+        async for text in stream.text_stream:
+            full_text += text
+            yield {"type": "token", "agent": AGENT_ID, "text": text}
 
-        if final_msg.stop_reason == "tool_use":
-            tool_results = []
-            for block in final_msg.content:
-                if block.type == "tool_use":
-                    result = _handle_tool(block.name, block.input)
-                    yield {"type": "tool_call", "agent": AGENT_ID, "tool": block.name}
-                    tool_results.append({
-                        "type": "tool_result",
-                        "tool_use_id": block.id,
-                        "content": json.dumps(result),
-                    })
-            messages.append({"role": "assistant", "content": final_msg.content})
-            messages.append({"role": "user", "content": tool_results})
-        else:
-            yield {"type": "agent_done", "agent": AGENT_ID, "label": AGENT_LABEL, "score": parse_score(full_text)}
-            return
-
-    yield {"type": "agent_done", "agent": AGENT_ID, "label": AGENT_LABEL, "score": 50}
+    yield {"type": "agent_done", "agent": AGENT_ID, "label": AGENT_LABEL, "score": parse_score(full_text)}

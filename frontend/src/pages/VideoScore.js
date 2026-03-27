@@ -6,36 +6,44 @@ const API = "http://localhost:8000";
 
 const JUDGES = [
   {
-    key: "pacing",       endpoint: "/agents/pacing/stream",
+    key: "pacing",       agentId: "pacing",              endpoint: "/agents/pacing/stream",
     name: "Pacing",      title: "Rhythm Judge",
     color: "#ff8c69",
     blob: "42% 58% 54% 46% / 56% 44% 58% 44%",
   },
   {
-    key: "sensory",      endpoint: "/agents/sensory/stream",
+    key: "sensory",      agentId: "sensory_overload",    endpoint: "/agents/sensory/stream",
     name: "Sensory",     title: "Stimulation Judge",
     color: "#5bbde4",
     blob: "52% 48% 44% 56% / 62% 38% 56% 44%",
   },
   {
-    key: "educational",  endpoint: "/agents/educational/stream",
+    key: "educational",  agentId: "educational_deficit", endpoint: "/agents/educational/stream",
     name: "Learning",    title: "Education Judge",
     color: "#6dd49a",
     blob: "56% 44% 46% 54% / 44% 58% 42% 58%",
   },
   {
-    key: "manipulation", endpoint: "/agents/manipulation/stream",
+    key: "manipulation", agentId: "manipulation",        endpoint: "/agents/manipulation/stream",
     name: "Influence",   title: "Manipulation Judge",
     color: "#ffc947",
     blob: "44% 56% 62% 38% / 54% 46% 46% 54%",
   },
   {
-    key: "dopamine",     endpoint: "/agents/dopamine/stream",
+    key: "dopamine",     agentId: "dopamine_cycling",    endpoint: "/agents/dopamine/stream",
     name: "Dopamine",    title: "Reward Judge",
     color: "#c3a8e8",
     blob: "62% 38% 48% 52% / 48% 62% 52% 48%",
   },
 ];
+
+const FINAL_JUDGE = {
+  key: "judge",
+  name: "Final Verdict",
+  title: "Senior Child Media Health Reviewer",
+  color: "#e8748a",
+  blob: "50% 50% 50% 50% / 50% 50% 50% 50%",
+};
 
 const IDLE_STATE    = { status: "idle",    thoughts: "", score: null };
 const WAITING_STATE = { status: "waiting", thoughts: "", score: null };
@@ -137,6 +145,33 @@ function JudgeCard({ judge, state }) {
   );
 }
 
+/* ── SSE stream reader helper ────────────────────────── */
+async function readSSEStream(res, onEvent) {
+  const reader = res.body.getReader();
+  const dec = new TextDecoder();
+  let buf = "";
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buf += dec.decode(value, { stream: true });
+    const lines = buf.split("\n");
+    buf = lines.pop();
+
+    for (const raw of lines) {
+      const line = raw.trim();
+      if (!line || line === "[DONE]") continue;
+      const chunk = line.startsWith("data: ") ? line.slice(6) : line;
+      if (chunk === "[DONE]") continue;
+      try {
+        onEvent(JSON.parse(chunk));
+      } catch {
+        /* ignore malformed lines */
+      }
+    }
+  }
+}
+
 /* ── Page ────────────────────────────────────────────── */
 export default function VideoScore() {
   const [url, setUrl]         = useState("");
@@ -146,7 +181,7 @@ export default function VideoScore() {
   const [error, setError]     = useState("");
   const [showPanel, setShowPanel] = useState(false);
   const [judgeStates, setJudgeStates] = useState(
-    Object.fromEntries(JUDGES.map(j => [j.key, IDLE_STATE]))
+    Object.fromEntries([...JUDGES, FINAL_JUDGE].map(j => [j.key, IDLE_STATE]))
   );
 
   function patchJudge(key, patch) {
@@ -159,45 +194,55 @@ export default function VideoScore() {
     }));
   }
 
-  async function streamJudge(judge, payload) {
+  /* Stream one specialist agent; returns { agentId, score } */
+  async function streamSpecialist(judge, payload) {
     patchJudge(judge.key, { status: "thinking", thoughts: "", score: null });
+    let finalScore = null;
     try {
       const res = await fetch(`${API}${judge.endpoint}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
-      if (!res.ok) { patchJudge(judge.key, { status: "error" }); return; }
+      if (!res.ok) { patchJudge(judge.key, { status: "error" }); return { agentId: judge.agentId, score: null }; }
 
-      const reader = res.body.getReader();
-      const dec    = new TextDecoder();
-      let buf = "", finalScore = null;
+      await readSSEStream(res, (obj) => {
+        const text = obj.text ?? "";
+        if (text) appendThought(judge.key, text);
+        if (obj.score !== undefined) finalScore = obj.score;
+      });
 
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        buf += dec.decode(value, { stream: true });
-        const lines = buf.split("\n");
-        buf = lines.pop();
-
-        for (const raw of lines) {
-          const line = raw.trim();
-          if (!line || line === "[DONE]") continue;
-          const chunk = line.startsWith("data: ") ? line.slice(6) : line;
-          if (chunk === "[DONE]") continue;
-          try {
-            const obj = JSON.parse(chunk);
-            const text = obj.text ?? obj.content ?? obj.chunk ?? obj.delta?.text ?? obj.delta?.content ?? "";
-            if (text) appendThought(judge.key, text);
-            if (obj.score !== undefined) finalScore = obj.score;
-          } catch {
-            if (chunk) appendThought(judge.key, chunk);
-          }
-        }
-      }
       patchJudge(judge.key, { status: "done", score: finalScore });
     } catch {
       patchJudge(judge.key, { status: "error" });
+    }
+    return { agentId: judge.agentId, score: finalScore };
+  }
+
+  /* Stream the final judge; uses radar from specialist scores */
+  async function streamFinalJudge(radar, age, channel, meta) {
+    patchJudge(FINAL_JUDGE.key, { status: "thinking", thoughts: "", score: null });
+    try {
+      const res = await fetch(`${API}/judge/stream`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ radar, age, channel }),
+      });
+      if (!res.ok) { patchJudge(FINAL_JUDGE.key, { status: "error" }); return; }
+
+      let finalScore = null;
+      await readSSEStream(res, (obj) => {
+        const text = obj.text ?? "";
+        if (text) appendThought(FINAL_JUDGE.key, text);
+        if (obj.score !== undefined) finalScore = obj.score;
+        if (obj.type === "final") {
+          setResult({ ...obj, meta });
+        }
+      });
+
+      patchJudge(FINAL_JUDGE.key, { status: "done", score: finalScore });
+    } catch {
+      patchJudge(FINAL_JUDGE.key, { status: "error" });
     }
   }
 
@@ -205,7 +250,7 @@ export default function VideoScore() {
     e.preventDefault();
     setError(""); setResult(null); setLoading(true);
     setShowPanel(true);
-    setJudgeStates(Object.fromEntries(JUDGES.map(j => [j.key, WAITING_STATE])));
+    setJudgeStates(Object.fromEntries([...JUDGES, FINAL_JUDGE].map(j => [j.key, WAITING_STATE])));
 
     try {
       const { data: pipeline } = await axios.post(`${API}/pipeline`, { url, age: Number(age) });
@@ -217,12 +262,17 @@ export default function VideoScore() {
         age:        Number(age),
       };
 
-      await Promise.all([
-        ...JUDGES.map(j => streamJudge(j, agentPayload)),
-        axios.post(`${API}/score`, { url, age: Number(age) })
-          .then(({ data }) => setResult(data))
-          .catch(err => setError(err.response?.data?.detail || "Something went wrong")),
-      ]);
+      /* Run all 5 specialists in parallel */
+      const results = await Promise.all(JUDGES.map(j => streamSpecialist(j, agentPayload)));
+
+      /* Build radar from returned scores (skip any that errored) */
+      const radar = {};
+      for (const { agentId, score } of results) {
+        if (score !== null) radar[agentId] = score;
+      }
+
+      /* Run final judge with collected scores */
+      await streamFinalJudge(radar, Number(age), pipeline.channel ?? "", pipeline.meta ?? {});
     } catch (err) {
       setError(err.response?.data?.detail || "Failed to extract video data");
     } finally {
@@ -230,10 +280,10 @@ export default function VideoScore() {
     }
   }
 
-  const allDone = JUDGES.every(j =>
-    judgeStates[j.key].status === "done" || judgeStates[j.key].status === "error"
-  );
-  const isWaiting = JUDGES.every(j => judgeStates[j.key].status === "waiting");
+  const specialists = JUDGES.map(j => judgeStates[j.key]);
+  const allSpecialistsDone = specialists.every(s => s.status === "done" || s.status === "error");
+  const isWaiting = [...JUDGES, FINAL_JUDGE].every(j => judgeStates[j.key].status === "waiting");
+  const allDone = judgeStates[FINAL_JUDGE.key].status === "done" || judgeStates[FINAL_JUDGE.key].status === "error";
 
   return (
     <>
@@ -278,6 +328,16 @@ export default function VideoScore() {
               <JudgeCard key={judge.key} judge={judge} state={judgeStates[judge.key]} />
             ))}
           </div>
+
+          {/* Final judge appears once specialists are done */}
+          {allSpecialistsDone && (
+            <div style={{ marginTop: "1.5rem" }}>
+              <div className="panel-subtitle" style={{ marginBottom: "1rem" }}>Final Verdict</div>
+              <div style={{ display: "flex", justifyContent: "center" }}>
+                <JudgeCard judge={FINAL_JUDGE} state={judgeStates[FINAL_JUDGE.key]} />
+              </div>
+            </div>
+          )}
         </div>
       )}
 

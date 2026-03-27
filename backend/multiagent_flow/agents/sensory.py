@@ -15,34 +15,13 @@ processing difficulties. Your expertise is in how audiovisual environments impac
 nervous system regulation — particularly how volume chaos, sudden loudness spikes, and sustained \
 auditory unpredictability dysregulate developing sensory systems.
 
-You have been given audio environment metrics for a video a child has watched. Use your tool to \
-assess the sensory load against clinical thresholds for the child's age, then write 2–3 sentences \
-from your therapeutic perspective on what you observe.
+You have been given audio environment metrics and pre-computed sensory load assessment for a \
+video a child has watched. Write 2–3 sentences from your therapeutic perspective on what you observe.
 
 End your response on a new line with exactly:
 SCORE: <0-100>
 (0 = calm, well-regulated sensory environment  |  100 = severe sensory overwhelm risk)\
 """
-
-TOOLS = [
-    {
-        "name": "assess_sensory_load",
-        "description": (
-            "Assess the sensory processing load from audio metrics against clinical thresholds "
-            "for the child's age. Returns volume variance classification, spike severity, "
-            "and whether age-specific thresholds are exceeded."
-        ),
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "volume_variance": {"type": "number", "description": "Fraction of frames at high volume (0.0–1.0)"},
-                "spike_frequency": {"type": "number", "description": "Volume spike events per minute"},
-                "age": {"type": "integer", "description": "Child's age"},
-            },
-            "required": ["volume_variance", "spike_frequency", "age"],
-        },
-    }
-]
 
 
 def _assess_sensory_load(volume_variance: float, spike_frequency: float, age: int) -> dict:
@@ -75,53 +54,32 @@ def _assess_sensory_load(volume_variance: float, spike_frequency: float, age: in
     }
 
 
-def _handle_tool(name: str, inp: dict) -> dict:
-    if name == "assess_sensory_load":
-        return _assess_sensory_load(inp["volume_variance"], inp["spike_frequency"], inp["age"])
-    return {"error": f"Unknown tool: {name}"}
-
-
 async def sensory_agent(signals: dict, age: int):
     bracket = age_bracket_label(age)
     band = get_age_band(age)
+    variance = signals.get("avg_volume_variance", 0)
+    spike_freq = signals.get("volume_spike_frequency", 0)
+
+    analysis = _assess_sensory_load(variance, spike_freq, age)
 
     user = (
         f"Child age: {age} (bracket: {bracket}, safe volume spike threshold: {band['max_volume_spike_pct']})\n"
-        f"Avg volume variance (0–1): {signals.get('avg_volume_variance', 0)}\n"
-        f"Volume spike frequency (per min): {signals.get('volume_spike_frequency', 0)}\n"
+        f"Avg volume variance (0–1): {variance}\n"
+        f"Volume spike frequency (per min): {spike_freq}\n"
         f"Duration: {signals.get('duration_sec', 0)}s\n\n"
+        f"Computed sensory load assessment:\n{json.dumps(analysis, indent=2)}\n\n"
         "Assess the sensory load of this video's audio environment for this child."
     )
 
     yield {"type": "agent_start", "agent": AGENT_ID, "label": AGENT_LABEL}
 
-    messages = [{"role": "user", "content": user}]
-    for _ in range(3):
-        full_text = ""
-        async with async_client.messages.stream(
-            model=MODEL, max_tokens=400, system=SYSTEM,
-            messages=messages, tools=TOOLS,
-        ) as stream:
-            async for text in stream.text_stream:
-                full_text += text
-                yield {"type": "token", "agent": AGENT_ID, "text": text}
-            final_msg = await stream.get_final_message()
+    full_text = ""
+    async with async_client.messages.stream(
+        model=MODEL, max_tokens=400, system=SYSTEM,
+        messages=[{"role": "user", "content": user}],
+    ) as stream:
+        async for text in stream.text_stream:
+            full_text += text
+            yield {"type": "token", "agent": AGENT_ID, "text": text}
 
-        if final_msg.stop_reason == "tool_use":
-            tool_results = []
-            for block in final_msg.content:
-                if block.type == "tool_use":
-                    result = _handle_tool(block.name, block.input)
-                    yield {"type": "tool_call", "agent": AGENT_ID, "tool": block.name}
-                    tool_results.append({
-                        "type": "tool_result",
-                        "tool_use_id": block.id,
-                        "content": json.dumps(result),
-                    })
-            messages.append({"role": "assistant", "content": final_msg.content})
-            messages.append({"role": "user", "content": tool_results})
-        else:
-            yield {"type": "agent_done", "agent": AGENT_ID, "label": AGENT_LABEL, "score": parse_score(full_text)}
-            return
-
-    yield {"type": "agent_done", "agent": AGENT_ID, "label": AGENT_LABEL, "score": 50}
+    yield {"type": "agent_done", "agent": AGENT_ID, "label": AGENT_LABEL, "score": parse_score(full_text)}
