@@ -3,6 +3,7 @@
 Scores how overstimulating/brain-rotty YouTube content is for kids, grounded in neuroscience.
 
 Prezi link: https://prezi.com/p/edit/rsyd2wcrpvna/
+
 Devpost link: https://devpost.com/software/rotcheck
 
 ## Prerequisites
@@ -66,8 +67,11 @@ yt-dlp → audio (librosa: cuts_per_min, avg_volume_variance, volume_spike_frequ
        → transcript (auto-subs)
        → metadata (title, channel, thumbnail, duration_sec)
             ↓
-   content_agent (Claude) — educational value, manipulation tactics
-   overstimulation_agent (Claude) — pacing, sensory load, dopamine cycling
+   behavioral_neuroscientist_agent (Claude) — dopamine cycling
+   child_dev_learning_agent (Claude) — educational deficits
+   child_consumer_psych_agent (Claude) — manipulation tactics
+   cognitive_load_researcher_agent (Claude) — pacing, cognitive load
+   sensory_integration_agent (Claude) — sensory overload
             ↓
    judge_agent (Claude) — synthesizes → BrainRot score + verdict + summary
 ```
