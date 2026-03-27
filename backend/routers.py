@@ -7,7 +7,7 @@ from fastapi import APIRouter, UploadFile, File, HTTPException
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from pipeline.video import run_pipeline
-from agents.scoring import score_video, score_video_stream
+from multiagent_flow.scoring import score_video, score_video_stream
 
 router = APIRouter()
 
