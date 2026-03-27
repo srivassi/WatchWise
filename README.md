@@ -2,6 +2,10 @@
 
 Scores how overstimulating/brain-rotty YouTube content is for kids, grounded in neuroscience.
 
+Prezi link: https://prezi.com/p/edit/rsyd2wcrpvna/
+
+Devpost link: https://devpost.com/software/rotcheck
+
 ## Prerequisites
 
 - Python 3.11+
@@ -34,7 +38,7 @@ npm install
 npm start
 ```
 
-App runs at http://localhost:3000
+App runs at https://watchwise-blond.vercel.app/
 
 ## Features
 
@@ -63,11 +67,19 @@ yt-dlp → video (ffmpeg: scene cuts → cuts_per_min)
        → audio (librosa: avg_volume_variance, volume_spike_frequency)
        → transcript (auto-subs) + metadata (title, channel, thumbnail, duration_sec)
             ↓
+<<<<<<< HEAD
    pacing_agent          — attentional demand (Fernando FSM model)
    sensory_agent         — audio environment vs clinical thresholds
    educational_agent     — content quality + language complexity
    manipulation_agent    — clickbait, parasocial language, fake urgency
    dopamine_agent        — variable reward schedule risk
+=======
+   behavioral_neuroscientist_agent (Claude) — dopamine cycling
+   child_dev_learning_agent (Claude) — educational deficits
+   child_consumer_psych_agent (Claude) — manipulation tactics
+   cognitive_load_researcher_agent (Claude) — pacing, cognitive load
+   sensory_integration_agent (Claude) — sensory overload
+>>>>>>> 7aae7f9668c53b868625f9e90887c5d7e52dbdfe
             ↓
    judge_agent — synthesizes → BrainRot score (0–100) + verdict + radar + summary
 ```

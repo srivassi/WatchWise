@@ -55,7 +55,7 @@ const IDLE_STATE    = { status: "idle",    thoughts: "", score: null };
 const WAITING_STATE = { status: "waiting", thoughts: "", score: null };
 
 /* ── Blob face SVG ───────────────────────────────────── */
-function BlobFace({ status }) {
+function BlobFace({ status, score }) {
   if (status === "waiting" || status === "idle" || status === "thinking") return (
     <svg viewBox="0 0 80 80" style={{ position: "absolute", inset: 0, width: "100%", height: "100%" }}>
       <line x1="24" y1="37" x2="34" y2="37" stroke="white" strokeWidth="3.5" strokeLinecap="round" opacity="0.9" />
@@ -64,13 +64,24 @@ function BlobFace({ status }) {
     </svg>
   );
 
-  if (status === "done") return (
-    <svg viewBox="0 0 80 80" style={{ position: "absolute", inset: 0, width: "100%", height: "100%" }}>
-      <path d="M21 38 Q28 29 35 38" stroke="white" strokeWidth="3.5" fill="none" strokeLinecap="round" opacity="0.95" />
-      <path d="M45 38 Q52 29 59 38" stroke="white" strokeWidth="3.5" fill="none" strokeLinecap="round" opacity="0.95" />
-      <path d="M25 50 Q40 63 55 50" stroke="white" strokeWidth="3.5" fill="none" strokeLinecap="round" opacity="0.95" />
-    </svg>
-  );
+  if (status === "done") {
+    if (score !== null && score < 50) {
+      return (
+        <svg viewBox="0 0 80 80" style={{ position: "absolute", inset: 0, width: "100%", height: "100%" }}>
+          <path d="M21 38 Q28 35 35 38" stroke="white" strokeWidth="3.5" fill="none" strokeLinecap="round" opacity="0.95" />
+          <path d="M45 38 Q52 35 59 38" stroke="white" strokeWidth="3.5" fill="none" strokeLinecap="round" opacity="0.95" />
+          <path d="M25 55 Q40 46 55 55" stroke="white" strokeWidth="3.5" fill="none" strokeLinecap="round" opacity="0.95" />
+        </svg>
+      );
+    }
+    return (
+      <svg viewBox="0 0 80 80" style={{ position: "absolute", inset: 0, width: "100%", height: "100%" }}>
+        <path d="M21 38 Q28 29 35 38" stroke="white" strokeWidth="3.5" fill="none" strokeLinecap="round" opacity="0.95" />
+        <path d="M45 38 Q52 29 59 38" stroke="white" strokeWidth="3.5" fill="none" strokeLinecap="round" opacity="0.95" />
+        <path d="M25 50 Q40 63 55 50" stroke="white" strokeWidth="3.5" fill="none" strokeLinecap="round" opacity="0.95" />
+      </svg>
+    );
+  }
 
   /* error */
   return (
@@ -106,7 +117,7 @@ function JudgeCard({ judge, state }) {
           className={`judge-blob anim-${status}`}
           style={{ background: judge.color, borderRadius: judge.blob }}
         >
-          <BlobFace status={status} />
+          <BlobFace status={status} score={score} />
         </div>
       </div>
 
@@ -161,10 +172,10 @@ async function readSSEStream(res, onEvent) {
 
 /* ── Page ────────────────────────────────────────────── */
 const PRESET_VIDEOS = [
-  { title: "Cocomelon - Wheels on the Bus", url: "https://www.youtube.com/watch?v=e_04ZrNroTo", thumb: "https://img.youtube.com/vi/e_04ZrNroTo/mqdefault.jpg" },
-  { title: "Ms Rachel - Baby Learning", url: "https://www.youtube.com/watch?v=HqgP0e557rA", thumb: "https://img.youtube.com/vi/HqgP0e557rA/mqdefault.jpg" },
-  { title: "MrBeast - Extreme Challenge", url: "https://www.youtube.com/watch?v=0e3GPea1Tyg", thumb: "https://img.youtube.com/vi/0e3GPea1Tyg/mqdefault.jpg" },
-  { title: "Blippi - Learn Colors", url: "https://www.youtube.com/watch?v=E-uQo1v5oX0", thumb: "https://img.youtube.com/vi/E-uQo1v5oX0/mqdefault.jpg" }
+  { title: "Cocomelon - Wheels on the Bus", url: "https://www.youtube.com/watch?v=e_04ZrNroTo", thumb: "https://img.youtube.com/vi/e_04ZrNroTo/0.jpg" },
+  { title: "Ms Rachel - Baby Learning", url: "https://www.youtube.com/watch?v=HqgP0e557rA", thumb: "https://img.youtube.com/vi/HqgP0e557rA/0.jpg" },
+  { title: "MrBeast - Extreme Challenge", url: "https://www.youtube.com/watch?v=0e3GPea1Tyg", thumb: "https://img.youtube.com/vi/0e3GPea1Tyg/0.jpg" },
+  { title: "Blippi - Learn Colors", url: "https://www.youtube.com/watch?v=E-uQo1v5oX0", thumb: "https://img.youtube.com/vi/E-uQo1v5oX0/0.jpg" }
 ];
 
 export default function VideoScore() {
@@ -330,7 +341,7 @@ export default function VideoScore() {
               />
             </div>
             <button type="submit" disabled={loading} style={{ padding: "16px 32px", fontSize: "1.1rem", borderRadius: "16px", background: "#6248d4", color: "#fff", fontWeight: "800", border: "none", cursor: "pointer", transition: "transform 0.1s" }}>
-              {loading ? "Analyzing…" : "Analyze ✨"}
+              {loading ? "Analyzing…" : "Analyze"}
             </button>
           </div>
         </form>
