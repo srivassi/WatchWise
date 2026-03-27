@@ -144,10 +144,8 @@ export default function VideoScore() {
   const [result, setResult]   = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError]     = useState("");
-  const [showPanel, setShowPanel] = useState(false);
-  const [judgeStates, setJudgeStates] = useState(
-    Object.fromEntries(JUDGES.map(j => [j.key, IDLE_STATE]))
-  );
+  const ObjectJudges = Object.fromEntries(JUDGES.map(j => [j.key, IDLE_STATE]));
+  const [judgeStates, setJudgeStates] = useState(ObjectJudges);
 
   function patchJudge(key, patch) {
     setJudgeStates(prev => ({ ...prev, [key]: { ...prev[key], ...patch } }));
@@ -187,15 +185,31 @@ export default function VideoScore() {
           if (chunk === "[DONE]") continue;
           try {
             const obj = JSON.parse(chunk);
-            const text = obj.text ?? obj.content ?? obj.chunk ?? obj.delta?.text ?? obj.delta?.content ?? "";
-            if (text) appendThought(judge.key, text);
+            let text = obj.text ?? obj.content ?? obj.chunk ?? obj.delta?.text ?? obj.delta?.content ?? "";
+            
+            // clean up markdown asterisks and double slashes
+            if (text) {
+              text = text.replace(/[\*`~]/g, "").replace(/\/\//g, "");
+              appendThought(judge.key, text);
+            } else if (obj.type === "tool_call") {
+              appendThought(judge.key, `[Using tool: ${obj.tool}...] `);
+            }
+            
             if (obj.score !== undefined) finalScore = obj.score;
           } catch {
-            if (chunk) appendThought(judge.key, chunk);
+            if (chunk) {
+              const cleaned = chunk.replace(/[\*`~]/g, "").replace(/\/\//g, "");
+              appendThought(judge.key, cleaned);
+            }
           }
         }
       }
-      patchJudge(judge.key, { status: "done", score: finalScore });
+      setJudgeStates(prev => {
+        const j = prev[judge.key];
+        let t = j.thoughts;
+        if (!t.trim()) t = "Analysis complete. No comments provided.";
+        return { ...prev, [judge.key]: { ...j, status: "done", score: finalScore, thoughts: t } };
+      });
     } catch {
       patchJudge(judge.key, { status: "error" });
     }
@@ -204,7 +218,6 @@ export default function VideoScore() {
   async function handleSubmit(e) {
     e.preventDefault();
     setError(""); setResult(null); setLoading(true);
-    setShowPanel(true);
     setJudgeStates(Object.fromEntries(JUDGES.map(j => [j.key, WAITING_STATE])));
 
     try {
@@ -238,49 +251,69 @@ export default function VideoScore() {
 
   return (
     <>
-      <div className="card">
-        <div className="section-title">Score a YouTube Video</div>
+      <div style={{ textAlign: "center", marginBottom: "3rem", padding: "0 1rem" }}>
+        <div style={{ display: "inline-block", color: "#7d9ee5", fontSize: "0.85rem", fontWeight: "800", letterSpacing: "1px", textTransform: "uppercase", marginBottom: "1rem" }}>
+          ✦ 01 - VIDEO ANALYSIS ✦
+        </div>
+        <h1 style={{ color: "#2a2e3f", fontSize: "3rem", fontWeight: "900", margin: "0 0 1rem", lineHeight: "1.1" }}>
+          Ensure their <span style={{ background: "#7d9ee5", color: "#fff", padding: "0 0.4em", borderRadius: "12px", display: "inline-block", transform: "rotate(-2deg)" }}>screen time</span> is healthy
+        </h1>
+        <p style={{ color: "#5b617c", fontSize: "1.1rem", maxWidth: "600px", margin: "0 auto", lineHeight: "1.6" }}>
+          Check any YouTube video for its pacing, sensory overload, and educational value. 
+          Our panel of specialized judges analyzes the content to give you peace of mind before your child watches.
+        </p>
+      </div>
+
+      <div className="card" style={{ marginBottom: "2rem", border: "2px solid #e8e2ff", borderRadius: "24px", boxShadow: "0 12px 24px rgba(98,72,212,0.05)" }}>
         <form onSubmit={handleSubmit}>
-          <div className="row">
+          <div className="row" style={{ gap: "1rem" }}>
             <input
-              type="text" placeholder="https://youtube.com/watch?v=…"
+              type="text" placeholder="Paste YouTube video URL here..."
               value={url} onChange={e => setUrl(e.target.value)} required
+              style={{ flex: 1, padding: "16px 20px", fontSize: "1.1rem", borderRadius: "16px", border: "2px solid #e8e2ff", outline: "none" }}
             />
-            <span className="age-label">Age</span>
-            <input type="number" min={2} max={17} value={age}
-              onChange={e => setAge(e.target.value)} />
-            <button type="submit" disabled={loading}>
-              {loading ? "Analyzing…" : "Analyze ✨"}
+            <div style={{ display: "flex", alignItems: "center", gap: "12px", background: "#f0eeff", padding: "4px 16px", borderRadius: "16px" }}>
+              <span className="age-label" style={{ fontWeight: 700, color: "#6248d4" }}>Age</span>
+              <input type="number" min={2} max={17} value={age}
+                onChange={e => setAge(e.target.value)} 
+                style={{ width: "60px", padding: "8px", border: "none", borderRadius: "8px", textAlign: "center", fontWeight: "800", fontSize: "1.1rem", color: "#2a2e3f" }}
+              />
+            </div>
+            <button type="submit" disabled={loading} style={{ padding: "16px 32px", fontSize: "1.1rem", borderRadius: "16px", background: "#6248d4", color: "#fff", fontWeight: "800", border: "none", cursor: "pointer", transition: "transform 0.1s" }}>
+              {loading ? "Analyzing…" : "Check Video ✨"}
             </button>
           </div>
         </form>
         {error && <div className="error">{error}</div>}
       </div>
 
-      {showPanel && (
-        <div className="panel-of-judges">
-          <div className="panel-header">
-            <div className="panel-title">
-              <span className="panel-title-stars">★</span>
-              {" "}Panel of Judges{" "}
-              <span className="panel-title-stars">★</span>
-            </div>
-            <div className="panel-subtitle">
-              {isWaiting
-                ? "Extracting video data…"
-                : loading && !allDone
-                ? "Deliberating…"
-                : "Verdict reached!"}
-            </div>
+      <div className="panel-of-judges" style={{ marginTop: "3rem" }}>
+        <div className="panel-header">
+          <div className="panel-title">
+            <span className="panel-title-stars" style={{ color: "#7d9ee5" }}>★</span>
+            {" "}Panel of Judges{" "}
+            <span className="panel-title-stars" style={{ color: "#7d9ee5" }}>★</span>
           </div>
+          <div className="panel-subtitle">
+            {isWaiting && !loading
+              ? "Awaiting video submission…"
+              : isWaiting
+              ? "Extracting video data…"
+              : loading && !allDone
+              ? "Deliberating…"
+              : allDone && !result
+              ? "Finalizing scores..."
+              : "Verdict reached!"}
+          </div>
+        </div>
 
-          <div className="judges-grid">
+        <div className="judges-grid">
             {JUDGES.map(judge => (
               <JudgeCard key={judge.key} judge={judge} state={judgeStates[judge.key]} />
             ))}
           </div>
         </div>
-      )}
+      
 
       {result && <ScoreCard result={result} />}
     </>
