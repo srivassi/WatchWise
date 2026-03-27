@@ -9,6 +9,13 @@ const VERDICT_COLORS = {
   "Brain Rot": "#f87171",
 };
 
+const FSM_COLORS = {
+  safe: "#34d399",
+  moderate: "#fbbf24",
+  high: "#f87171",
+  unknown: "#9090b0",
+};
+
 function barColor(score) {
   if (score < 30) return "#34d399";
   if (score < 55) return "#fbbf24";
@@ -17,7 +24,7 @@ function barColor(score) {
 }
 
 export function ScoreCard({ result }) {
-  const { brainrot_score, verdict, summary, radar, meta } = result;
+  const { brainrot_score, verdict, summary, radar, meta, age_bracket, fsm_risk_level } = result;
   const radarData = Object.entries(radar || {}).map(([key, val]) => ({
     axis: key.replace(/_/g, " "),
     value: val,
@@ -34,14 +41,38 @@ export function ScoreCard({ result }) {
           </div>
         </div>
       )}
+
       <div className="gauge-wrap">
         <div className="gauge-score">{brainrot_score}</div>
         <div className="gauge-bar-bg">
           <div className="gauge-bar" style={{ width: `${brainrot_score}%`, background: barColor(brainrot_score) }} />
         </div>
         <div className="verdict" style={{ color: VERDICT_COLORS[verdict] || "#e8e8f0" }}>{verdict}</div>
+
+        {/* Age bracket + FSM risk badges */}
+        <div style={{ display: "flex", gap: "0.5rem", justifyContent: "center", marginTop: "0.5rem", flexWrap: "wrap" }}>
+          {age_bracket && (
+            <span style={{
+              fontSize: "0.75rem", padding: "0.2rem 0.6rem",
+              background: "#2a2a3a", borderRadius: "999px", color: "#9090b0",
+            }}>
+              ages {age_bracket}
+            </span>
+          )}
+          {fsm_risk_level && (
+            <span style={{
+              fontSize: "0.75rem", padding: "0.2rem 0.6rem",
+              background: "#2a2a3a", borderRadius: "999px",
+              color: FSM_COLORS[fsm_risk_level] || "#9090b0",
+            }}>
+              pacing: {fsm_risk_level}
+            </span>
+          )}
+        </div>
+
         <p className="summary">{summary}</p>
       </div>
+
       {radarData.length > 0 && (
         <>
           <div className="section-title" style={{ marginTop: "1rem" }}>Breakdown</div>
