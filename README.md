@@ -1,4 +1,4 @@
-# RotCheck 🧠
+# WatchWise 🧠
 
 Scores how overstimulating/brain-rotty YouTube content is for kids, grounded in neuroscience.
 
@@ -18,8 +18,8 @@ python -m venv venv
 venv\Scripts\activate        # Windows
 pip install -r requirements.txt
 
-# Add your Anthropic key to .env
-# ANTHROPIC_API_KEY=sk-ant-...
+# Copy and fill in your Anthropic key
+cp .env.example .env
 
 uvicorn main:app --reload
 ```
@@ -40,31 +40,37 @@ App runs at http://localhost:3000
 
 | Page | What it does |
 |------|-------------|
-| Score Video | Paste a YouTube URL → BrainRot score (0–100) + radar chart breakdown |
+| Score Video | Paste a YouTube URL → BrainRot score (0–100) + radar chart, with live agent streaming |
 | Watch History | Upload Google Takeout `watch-history.json` → dashboard with trend line + creator table |
 | Creator Lookup | Enter a channel URL → samples 5 recent videos → average kid-friendliness rating |
 
 ## Scoring Dimensions (Radar Chart)
 
-- **Pacing** — cuts/min from audio onset detection (maps to attentional demand)
-- **Sensory Overload** — volume spike frequency + avg volume variance (audio chaos)
-- **Educational Value** — transcript + title analysis via Claude
-- **Manipulation** — clickbait, parasocial language, fake urgency
-- **Dopamine Cycling** — reward loop risk based on pacing + content patterns
+- **Pacing** — cuts/min from ffmpeg scene detection (falls back to librosa onset detection)
+- **Sensory Overload** — volume spike frequency + avg volume variance via IQR analysis
+- **Educational Value** — transcript analysis via Claude
+- **Manipulation** — clickbait, parasocial language, fake urgency detection
+- **Dopamine Cycling** — variable reward schedule modelling from pacing + audio signals
 
 ## Age Adjustment
 
-All three Claude agents receive the child's age. Thresholds shift — 3 cuts/min is flagged as high pacing for a 4-year-old but acceptable for a 12-year-old.
+All scoring agents receive the child's age. Thresholds shift — 3 cuts/min is flagged as high pacing for a 4-year-old but acceptable for a 12-year-old.
 
 ## Architecture
 
 ```
-yt-dlp → audio (librosa: cuts_per_min, avg_volume_variance, volume_spike_frequency)
-       → transcript (auto-subs)
-       → metadata (title, channel, thumbnail, duration_sec)
+yt-dlp → video (ffmpeg: scene cuts → cuts_per_min)
+       → audio (librosa: avg_volume_variance, volume_spike_frequency)
+       → transcript (auto-subs) + metadata (title, channel, thumbnail, duration_sec)
             ↓
-   content_agent (Claude) — educational value, manipulation tactics
-   overstimulation_agent (Claude) — pacing, sensory load, dopamine cycling
+   pacing_agent          — attentional demand (Fernando FSM model)
+   sensory_agent         — audio environment vs clinical thresholds
+   educational_agent     — content quality + language complexity
+   manipulation_agent    — clickbait, parasocial language, fake urgency
+   dopamine_agent        — variable reward schedule risk
             ↓
-   judge_agent (Claude) — synthesizes → BrainRot score + verdict + summary
+   judge_agent — synthesizes → BrainRot score (0–100) + verdict + radar + summary
 ```
+
+Results stream to the frontend in real-time as each specialist completes.
+Pipeline output is cached in-memory so repeated URLs skip re-downloading.

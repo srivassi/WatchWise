@@ -16,6 +16,7 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
 from pipeline.video import run_pipeline
+from pipeline.cache import pipeline_cache
 from multiagent_flow.agents.pacing import pacing_agent
 from multiagent_flow.agents.sensory import sensory_agent
 from multiagent_flow.agents.educational import educational_agent
@@ -69,7 +70,11 @@ def _sse_response(gen):
 
 @agent_router.post("/pipeline")
 async def pipeline(req: PipelineRequest):
-    data = await asyncio.to_thread(run_pipeline, req.url)
+    if req.url in pipeline_cache:
+        data = pipeline_cache[req.url]
+    else:
+        data = await asyncio.to_thread(run_pipeline, req.url)
+        pipeline_cache[req.url] = data
     signals = {
         "cuts_per_min": data.get("cuts_per_min", 0),
         "avg_volume_variance": data.get("avg_volume_variance", 0.0),

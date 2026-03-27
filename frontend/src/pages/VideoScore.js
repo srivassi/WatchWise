@@ -227,6 +227,7 @@ export default function VideoScore() {
       setError(err.response?.data?.detail || "Failed to extract video data");
     } finally {
       setLoading(false);
+      setStage("");
     }
   }
 
