@@ -25,6 +25,11 @@ function barColor(score) {
 
 export function ScoreCard({ result }) {
   const { brainrot_score, verdict, summary, radar, meta, age_bracket, fsm_risk_level } = result;
+  
+  const cleanSummary = typeof summary === 'string' 
+    ? summary.replace(/[\*`~]/g, "").replace(/\/\//g, "") 
+    : summary;
+
   const radarData = Object.entries(radar || {}).map(([key, val]) => ({
     axis: key.replace(/_/g, " "),
     value: val,
@@ -71,7 +76,7 @@ export function ScoreCard({ result }) {
           )}
         </div>
 
-        <p className="summary">{summary}</p>
+        <p className="summary">{cleanSummary}</p>
       </div>
 
       {radarData.length > 0 && (
